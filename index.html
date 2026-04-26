@@ -890,10 +890,8 @@ const defaultSim = {
   rentab: 0.12,
   dy: 0.10,
   prazo: 25,
-  ipca: 0.04,
   rentabCDI: 0.105,
-  rentabPoupanca: 0.065,
-  showReal: false
+  rentabPoupanca: 0.065
 };
 const PORTFOLIO_ALLOCATION = [{
   name: 'FIIs',
@@ -1023,26 +1021,6 @@ const getIncomeTier = rendaMensal => {
   return {
     adjustment: 100
   };
-};
-const SCENARIO_PRESETS = {
-  conservador: {
-    label: 'Conservador',
-    aporteMult: 0.7,
-    rentab: 0.10,
-    prazoAdd: 5
-  },
-  moderado: {
-    label: 'Moderado',
-    aporteMult: 1.0,
-    rentab: 0.12,
-    prazoAdd: 0
-  },
-  acelerado: {
-    label: 'Acelerado',
-    aporteMult: 1.4,
-    rentab: 0.13,
-    prazoAdd: -3
-  }
 };
 
 // ========== COMPONENTS ==========
@@ -1582,7 +1560,6 @@ function ProcrastinationWidget({
   const now = futureValue(initial, contribution, rate, years);
   const later = futureValue(initial, contribution, rate, effectiveYears);
   const diff = now - later;
-  const diffPct = now > 0 ? diff / now * 100 : 0;
   const waitLabel = waitMonths < 12 ? `${waitMonths} ${waitMonths === 1 ? 'mês' : 'meses'}` : waitYears === Math.floor(waitYears) ? `${waitYears} ${waitYears === 1 ? 'ano' : 'anos'}` : `${Math.floor(waitYears)}a ${waitMonths % 12}m`;
   return /*#__PURE__*/React.createElement("div", {
     className: "lp-card",
@@ -1700,7 +1677,7 @@ function ProcrastinationWidget({
       color: BRAND.danger,
       fontWeight: 500
     }
-  }, "Procrastinar custa ", /*#__PURE__*/React.createElement("strong", null, formatBRL(diff, true)), " (", diffPct.toFixed(0), "% do objetivo)")));
+  }, "Procrastinar custa ", /*#__PURE__*/React.createElement("strong", null, formatBRL(diff, true)), now > 0 && diff > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, " \u2014 equivale a ", /*#__PURE__*/React.createElement("strong", null, (diff / now * 100).toFixed(0), "%"), " a menos no patrim\xF4nio final") : null)));
 }
 function AllocationChart() {
   return /*#__PURE__*/React.createElement("div", {
@@ -1906,7 +1883,6 @@ function App() {
   const [sim, setSim] = useState(defaultSim);
   const [loaded, setLoaded] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
-  const [activePreset, setActivePreset] = useState(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const baseAporteRef = useRef(defaultSim.aporte);
   useEffect(() => {
@@ -1975,26 +1951,13 @@ function App() {
     setObjective(defaultObjective);
     setSim(defaultSim);
     baseAporteRef.current = defaultSim.aporte;
-    setActivePreset(null);
     setShowResetConfirm(false);
-  };
-  const applyPreset = key => {
-    const p = SCENARIO_PRESETS[key];
-    setActivePreset(key);
-    setSim(s => ({
-      ...s,
-      aporte: Math.round(baseAporteRef.current * p.aporteMult),
-      rentab: p.rentab,
-      prazo: Math.max(5, Math.min(40, objective.idadeObjetivo - profile.idade + p.prazoAdd))
-    }));
   };
   const rendaDesejadaMensal = useMemo(() => profile.custoVida * (objective.multiplicadorObjetivo / 100), [profile.custoVida, objective.multiplicadorObjetivo]);
   const patrimonioAlvo = useMemo(() => rendaDesejadaMensal / (sim.dy / 12), [rendaDesejadaMensal, sim.dy]);
-  const rentabReal = useMemo(() => (1 + sim.rentab) / (1 + sim.ipca) - 1, [sim.rentab, sim.ipca]);
+  const rentabReal = useMemo(() => sim.rentab, [sim.rentab]);
   const patrimonioFuturo = useMemo(() => futureValue(profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo), [profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo]);
-  const patrimonioFuturoReal = useMemo(() => realValue(patrimonioFuturo, sim.ipca, sim.prazo), [patrimonioFuturo, sim.ipca, sim.prazo]);
   const rendaPassivaFinal = useMemo(() => patrimonioFuturo * (sim.dy / 12), [patrimonioFuturo, sim.dy]);
-  const rendaPassivaRealFinal = useMemo(() => realValue(rendaPassivaFinal, sim.ipca, sim.prazo), [rendaPassivaFinal, sim.ipca, sim.prazo]);
   const tempoAteIndependencia = useMemo(() => {
     if (profile.custoVida <= 0) return null;
     const target = profile.custoVida / (sim.dy / 12);
@@ -2004,14 +1967,14 @@ function App() {
   const totalAportado = useMemo(() => profile.patrimonioInicial + sim.aporte * sim.prazo * 12, [profile.patrimonioInicial, sim.aporte, sim.prazo]);
   const rendimentoTotal = patrimonioFuturo - totalAportado;
   const chartData = useMemo(() => {
-    const lp = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo, sim.ipca);
-    const cdi = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentabCDI, sim.prazo, sim.ipca);
-    const pp = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentabPoupanca, sim.prazo, sim.ipca);
+    const lp = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo, 0);
+    const cdi = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentabCDI, sim.prazo, 0);
+    const pp = buildTrajectory(profile.patrimonioInicial, sim.aporte, sim.rentabPoupanca, sim.prazo, 0);
     return lp.map((d, i) => ({
       year: d.year,
-      lpFinance: sim.showReal ? d.real : d.nominal,
-      cdi: sim.showReal ? cdi[i].real : cdi[i].nominal,
-      poupanca: sim.showReal ? pp[i].real : pp[i].nominal
+      lpFinance: d.nominal,
+      cdi: cdi[i].nominal,
+      poupanca: pp[i].nominal
     }));
   }, [profile.patrimonioInicial, sim]);
   const milestones = useMemo(() => {
@@ -2409,36 +2372,6 @@ function App() {
     subtitle: "Ajuste as premissas e veja o impacto em tempo real"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
-      display: 'flex',
-      gap: 8,
-      marginBottom: 20,
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "lp-body",
-    style: {
-      fontSize: 12,
-      color: BRAND.textMuted,
-      marginRight: 4
-    }
-  }, "Cen\xE1rios r\xE1pidos:"), Object.keys(SCENARIO_PRESETS).map(key => /*#__PURE__*/React.createElement("button", {
-    key: key,
-    className: `lp-preset-btn ${activePreset === key ? 'active' : ''}`,
-    onClick: () => applyPreset(key)
-  }, SCENARIO_PRESETS[key].label)), /*#__PURE__*/React.createElement("button", {
-    className: "lp-btn-ghost",
-    onClick: () => {
-      setSim(defaultSim);
-      setActivePreset(null);
-      baseAporteRef.current = defaultSim.aporte;
-    },
-    style: {
-      marginLeft: 'auto'
-    }
-  }, /*#__PURE__*/React.createElement(RefreshCw, {
-    size: 12
-  }), " Reset")), /*#__PURE__*/React.createElement("div", {
-    style: {
       display: 'grid',
       gridTemplateColumns: '1fr 2fr',
       gap: 16
@@ -2481,7 +2414,6 @@ function App() {
         aporte: v
       });
       baseAporteRef.current = v;
-      setActivePreset(null);
     },
     min: 200,
     max: 50000,
@@ -2489,15 +2421,12 @@ function App() {
     format: v => formatBRL(v),
     accent: BRAND.cyan
   }), /*#__PURE__*/React.createElement(Slider, {
-    label: "Rentabilidade anual (nominal)",
+    label: "Rentabilidade anual",
     value: sim.rentab,
-    onChange: v => {
-      setSim({
-        ...sim,
-        rentab: v
-      });
-      setActivePreset(null);
-    },
+    onChange: v => setSim({
+      ...sim,
+      rentab: v
+    }),
     min: 0.06,
     max: 0.18,
     step: 0.005,
@@ -2518,62 +2447,28 @@ function App() {
   }), /*#__PURE__*/React.createElement(Slider, {
     label: "Prazo (anos)",
     value: sim.prazo,
-    onChange: v => {
-      setSim({
-        ...sim,
-        prazo: v
-      });
-      setActivePreset(null);
-    },
+    onChange: v => setSim({
+      ...sim,
+      prazo: v
+    }),
     min: 5,
     max: 40,
     step: 1,
     format: v => `${v} anos`,
     accent: BRAND.navy
-  }), /*#__PURE__*/React.createElement(Slider, {
-    label: "Infla\xE7\xE3o (IPCA)",
-    value: sim.ipca,
-    onChange: v => setSim({
-      ...sim,
-      ipca: v
-    }),
-    min: 0.02,
-    max: 0.10,
-    step: 0.005,
-    format: formatPct,
-    accent: BRAND.textMuted
-  }), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "lp-btn-ghost",
+    onClick: () => {
+      setSim(defaultSim);
+      baseAporteRef.current = defaultSim.aporte;
+    },
     style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 10,
-      padding: '12px 14px',
-      background: BRAND.bg,
-      borderRadius: 8
+      alignSelf: 'flex-start',
+      marginTop: 4
     }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    id: "showReal",
-    checked: sim.showReal,
-    onChange: e => setSim({
-      ...sim,
-      showReal: e.target.checked
-    }),
-    style: {
-      accentColor: BRAND.navy,
-      width: 16,
-      height: 16
-    }
-  }), /*#__PURE__*/React.createElement("label", {
-    htmlFor: "showReal",
-    className: "lp-body",
-    style: {
-      fontSize: 12,
-      color: BRAND.text,
-      cursor: 'pointer',
-      userSelect: 'none'
-    }
-  }, "Mostrar valores em ", /*#__PURE__*/React.createElement("strong", null, "poder de compra real"), " (descontando IPCA)")))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(RefreshCw, {
+    size: 12
+  }), " Resetar premissas"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       flexDirection: 'column',
@@ -2587,21 +2482,21 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(MetricCard, {
     icon: Wallet,
-    label: sim.showReal ? 'Patrimônio em ' + sim.prazo + ' anos (real)' : 'Patrimônio em ' + sim.prazo + ' anos',
-    value: formatBRL(sim.showReal ? patrimonioFuturoReal : patrimonioFuturo, true),
-    subtitle: sim.showReal ? `Nominal: ${formatBRL(patrimonioFuturo, true)}` : `Valor real: ${formatBRL(patrimonioFuturoReal, true)}`,
+    label: 'Patrimônio em ' + sim.prazo + ' anos',
+    value: formatBRL(patrimonioFuturo, true),
+    subtitle: `${formatBRL(sim.aporte)}/mês × ${sim.prazo * 12} meses`,
     tone: "primary"
   }), /*#__PURE__*/React.createElement(MetricCard, {
     icon: Coins,
-    label: sim.showReal ? 'Renda passiva mensal (real)' : 'Renda passiva mensal',
-    value: formatBRL(sim.showReal ? rendaPassivaRealFinal : rendaPassivaFinal, true),
-    subtitle: profile.custoVida > 0 ? `Equivale a ${(rendaPassivaRealFinal / profile.custoVida * 100).toFixed(0)}% do custo de vida de hoje` : 'Defina o custo de vida',
+    label: "Renda passiva mensal",
+    value: formatBRL(rendaPassivaFinal, true),
+    subtitle: profile.custoVida > 0 ? `Equivale a ${(rendaPassivaFinal / profile.custoVida * 100).toFixed(0)}% do custo de vida de hoje` : 'Defina o custo de vida',
     tone: "default"
   }), /*#__PURE__*/React.createElement(MetricCard, {
     icon: Clock,
     label: "Tempo at\xE9 independ\xEAncia",
     value: formatYears(tempoAteIndependencia),
-    subtitle: tempoAteIndependencia === null ? 'Inatingível com premissas atuais' : `Dividendos ≥ ${formatBRL(profile.custoVida)}/mês (R$ de hoje)`,
+    subtitle: tempoAteIndependencia === null ? 'Inatingível com premissas atuais' : `Dividendos ≥ ${formatBRL(profile.custoVida)}/mês`,
     tone: tempoAteIndependencia !== null && tempoAteIndependencia <= objective.idadeObjetivo - profile.idade ? 'success' : 'warning'
   }), /*#__PURE__*/React.createElement(MetricCard, {
     icon: TrendingUp,
@@ -2636,9 +2531,9 @@ function App() {
       color: BRAND.textMuted,
       margin: '4px 0 0 0'
     }
-  }, sim.showReal ? 'Valores em poder de compra de hoje (descontam IPCA)' : 'Valores nominais — linha de alvo ajustada pela inflação no horizonte'))), /*#__PURE__*/React.createElement(ComparisonChart, {
+  }, "Comparativo entre poupan\xE7a, CDI e a estrat\xE9gia LP Finance"))), /*#__PURE__*/React.createElement(ComparisonChart, {
     data: chartData,
-    target: sim.showReal ? patrimonioAlvo : patrimonioAlvo * Math.pow(1 + sim.ipca, sim.prazo)
+    target: patrimonioAlvo
   }))))), /*#__PURE__*/React.createElement("section", {
     style: {
       marginBottom: 40
