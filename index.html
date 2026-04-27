@@ -1954,16 +1954,16 @@ function App() {
     setShowResetConfirm(false);
   };
   const rendaDesejadaMensal = useMemo(() => profile.custoVida * (objective.multiplicadorObjetivo / 100), [profile.custoVida, objective.multiplicadorObjetivo]);
-  const patrimonioAlvo = useMemo(() => rendaDesejadaMensal / (sim.dy / 12), [rendaDesejadaMensal, sim.dy]);
+  const patrimonioAlvo = useMemo(() => sim.dy > 0 ? rendaDesejadaMensal / (sim.dy / 12) : null, [rendaDesejadaMensal, sim.dy]);
   const rentabReal = useMemo(() => sim.rentab, [sim.rentab]);
   const patrimonioFuturo = useMemo(() => futureValue(profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo), [profile.patrimonioInicial, sim.aporte, sim.rentab, sim.prazo]);
   const rendaPassivaFinal = useMemo(() => patrimonioFuturo * (sim.dy / 12), [patrimonioFuturo, sim.dy]);
   const tempoAteIndependencia = useMemo(() => {
-    if (profile.custoVida <= 0) return null;
+    if (profile.custoVida <= 0 || sim.dy <= 0) return null;
     const target = profile.custoVida / (sim.dy / 12);
     return timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, target);
   }, [profile.custoVida, profile.patrimonioInicial, sim.aporte, rentabReal, sim.dy]);
-  const tempoAteObjetivo = useMemo(() => timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, patrimonioAlvo), [profile.patrimonioInicial, sim.aporte, rentabReal, patrimonioAlvo]);
+  const tempoAteObjetivo = useMemo(() => patrimonioAlvo === null ? null : timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, patrimonioAlvo), [profile.patrimonioInicial, sim.aporte, rentabReal, patrimonioAlvo]);
   const totalAportado = useMemo(() => profile.patrimonioInicial + sim.aporte * sim.prazo * 12, [profile.patrimonioInicial, sim.aporte, sim.prazo]);
   const rendimentoTotal = patrimonioFuturo - totalAportado;
   const chartData = useMemo(() => {
@@ -1978,10 +1978,14 @@ function App() {
     }));
   }, [profile.patrimonioInicial, sim]);
   const milestones = useMemo(() => {
-    const tgt = renda => renda / (sim.dy / 12);
-    const wouldBeMet = target => profile.patrimonioInicial >= target;
-    // Patrimônio onde dividendos mensais = aporte mensal
-    const tgtDividendoIgualAporte = tgt(sim.aporte);
+    const dyOk = sim.dy > 0;
+    const tgt = renda => dyOk ? renda / (sim.dy / 12) : null;
+    const wouldBeMet = target => target !== null && profile.patrimonioInicial >= target;
+    const safeTime = target => target === null ? null : timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, target);
+    const safePat = mult => patrimonioAlvo === null ? null : patrimonioAlvo * mult;
+    const tgt500 = tgt(500);
+    const tgt1000 = tgt(1000);
+    const tgtDividendoIgualAporte = sim.aporte > 0 ? tgt(sim.aporte) : null;
     const items = [{
       icon: Sparkles,
       label: 'Primeiro aporte',
@@ -1992,43 +1996,43 @@ function App() {
     }, {
       icon: Coins,
       label: 'Primeiros R$ 500 de renda passiva',
-      description: `Patrimônio de ${formatBRL(tgt(500), true)} gera R$ 500/mês`,
-      time: timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, tgt(500)),
-      reached: wouldBeMet(tgt(500))
+      description: dyOk ? `Patrimônio de ${formatBRL(tgt500, true)} gera R$ 500/mês` : 'Defina um DY maior que 0 para projetar renda',
+      time: safeTime(tgt500),
+      reached: wouldBeMet(tgt500)
     }, {
       icon: Coins,
       label: 'Primeiros R$ 1.000 de renda passiva',
-      description: `Patrimônio de ${formatBRL(tgt(1000), true)} gera R$ 1.000/mês`,
-      time: timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, tgt(1000)),
-      reached: wouldBeMet(tgt(1000))
+      description: dyOk ? `Patrimônio de ${formatBRL(tgt1000, true)} gera R$ 1.000/mês` : 'Defina um DY maior que 0 para projetar renda',
+      time: safeTime(tgt1000),
+      reached: wouldBeMet(tgt1000)
     }, {
       icon: TrendingUp,
       label: 'Dividendos = seu aporte',
-      description: `${formatBRL(tgtDividendoIgualAporte, true)} geram ${formatBRL(sim.aporte, true)}/mês — carteira aporta junto com você`,
-      time: timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, tgtDividendoIgualAporte),
+      description: dyOk && sim.aporte > 0 ? `${formatBRL(tgtDividendoIgualAporte, true)} geram ${formatBRL(sim.aporte, true)}/mês — carteira aporta junto com você` : sim.aporte === 0 ? 'Sem aporte mensal definido' : 'Defina um DY maior que 0 para projetar renda',
+      time: safeTime(tgtDividendoIgualAporte),
       reached: wouldBeMet(tgtDividendoIgualAporte)
     }, {
       icon: Zap,
       label: '25% do objetivo',
-      description: `${formatBRL(patrimonioAlvo * 0.25, true)} em patrimônio`,
-      time: timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, patrimonioAlvo * 0.25),
-      reached: wouldBeMet(patrimonioAlvo * 0.25)
+      description: patrimonioAlvo !== null ? `${formatBRL(patrimonioAlvo * 0.25, true)} em patrimônio` : 'Defina um DY maior que 0 para projetar objetivo',
+      time: safeTime(safePat(0.25)),
+      reached: wouldBeMet(safePat(0.25))
     }, {
       icon: Trophy,
       label: 'Primeiro milhão',
       description: `${formatBRL(1000000, true)} em patrimônio acumulado`,
       time: timeToTarget(profile.patrimonioInicial, sim.aporte, rentabReal, 1000000),
-      reached: wouldBeMet(1000000)
+      reached: profile.patrimonioInicial >= 1000000
     }, {
       icon: Shield,
       label: 'Independência financeira',
-      description: `Dividendos cobrem custo de vida (${formatBRL(profile.custoVida, true)}/mês)`,
+      description: dyOk ? `Dividendos cobrem custo de vida (${formatBRL(profile.custoVida, true)}/mês)` : 'Defina um DY maior que 0 para projetar renda',
       time: tempoAteIndependencia,
-      reached: profile.custoVida > 0 && wouldBeMet(profile.custoVida / (sim.dy / 12))
+      reached: dyOk && profile.custoVida > 0 && wouldBeMet(profile.custoVida / (sim.dy / 12))
     }, {
       icon: Trophy,
       label: 'Objetivo pleno',
-      description: `${formatBRL(rendaDesejadaMensal, true)}/mês em dividendos — ${objective.multiplicadorObjetivo}% do custo`,
+      description: dyOk ? `${formatBRL(rendaDesejadaMensal, true)}/mês em dividendos — ${objective.multiplicadorObjetivo}% do custo` : 'Defina um DY maior que 0 para projetar objetivo',
       time: tempoAteObjetivo,
       reached: wouldBeMet(patrimonioAlvo)
     }];
@@ -2355,14 +2359,14 @@ function App() {
       color: BRAND.navy,
       lineHeight: 1.1
     }
-  }, formatBRL(patrimonioAlvo, true)), /*#__PURE__*/React.createElement("div", {
+  }, patrimonioAlvo === null ? '—' : formatBRL(patrimonioAlvo, true)), /*#__PURE__*/React.createElement("div", {
     className: "lp-body",
     style: {
       fontSize: 12,
       color: BRAND.textMuted,
       marginTop: 4
     }
-  }, "Para gerar ", formatBRL(rendaDesejadaMensal), "/m\xEAs a ", formatPct(sim.dy), " a.a. de DY"))))), /*#__PURE__*/React.createElement("section", {
+  }, patrimonioAlvo === null ? 'Defina um DY maior que 0 para projetar o objetivo' : `Para gerar ${formatBRL(rendaDesejadaMensal)}/mês a ${formatPct(sim.dy)} a.a. de DY`))))), /*#__PURE__*/React.createElement("section", {
     style: {
       marginBottom: 40
     }
@@ -2415,7 +2419,7 @@ function App() {
       });
       baseAporteRef.current = v;
     },
-    min: 200,
+    min: 0,
     max: 50000,
     step: 100,
     format: v => formatBRL(v),
@@ -2439,7 +2443,7 @@ function App() {
       ...sim,
       dy: v
     }),
-    min: 0.04,
+    min: 0,
     max: 0.15,
     step: 0.005,
     format: formatPct,
@@ -2490,13 +2494,13 @@ function App() {
     icon: Coins,
     label: "Renda passiva mensal",
     value: formatBRL(rendaPassivaFinal, true),
-    subtitle: profile.custoVida > 0 ? `Equivale a ${(rendaPassivaFinal / profile.custoVida * 100).toFixed(0)}% do custo de vida de hoje` : 'Defina o custo de vida',
+    subtitle: sim.dy === 0 ? 'Sem DY definido — apenas valorização' : profile.custoVida > 0 ? `Equivale a ${(rendaPassivaFinal / profile.custoVida * 100).toFixed(0)}% do custo de vida de hoje` : 'Defina o custo de vida',
     tone: "default"
   }), /*#__PURE__*/React.createElement(MetricCard, {
     icon: Clock,
     label: "Tempo at\xE9 independ\xEAncia",
     value: formatYears(tempoAteIndependencia),
-    subtitle: tempoAteIndependencia === null ? 'Inatingível com premissas atuais' : `Dividendos ≥ ${formatBRL(profile.custoVida)}/mês`,
+    subtitle: sim.dy === 0 ? 'Defina um DY maior que 0' : tempoAteIndependencia === null ? 'Inatingível com premissas atuais' : `Dividendos ≥ ${formatBRL(profile.custoVida)}/mês`,
     tone: tempoAteIndependencia !== null && tempoAteIndependencia <= objective.idadeObjetivo - profile.idade ? 'success' : 'warning'
   }), /*#__PURE__*/React.createElement(MetricCard, {
     icon: TrendingUp,
