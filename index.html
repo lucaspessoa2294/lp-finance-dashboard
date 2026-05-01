@@ -1011,15 +1011,32 @@ const PLANS = [{
     on: true
   }]
 }];
+
+// Ajuste de preço por faixa de renda mensal:
+// Tier 1 (< R$ 15.000):     Básico 197 / Essencial 297 / Premium 397
+// Tier 2 (R$ 15k–19.999,99): Básico 297 / Essencial 397 / Premium 497  (+R$ 100 em todos)
+// Tier 3 (>= R$ 20.000):     Básico 397 / Essencial 597 / Premium 797  (saltos diferentes)
 const getIncomeTier = rendaMensal => {
-  if (rendaMensal <= 15000) return {
-    adjustment: 0
+  if (rendaMensal < 15000) return {
+    adjustments: {
+      basico: 0,
+      essencial: 0,
+      premium: 0
+    }
   };
-  if (rendaMensal <= 20000) return {
-    adjustment: 50
+  if (rendaMensal < 20000) return {
+    adjustments: {
+      basico: 100,
+      essencial: 100,
+      premium: 100
+    }
   };
   return {
-    adjustment: 100
+    adjustments: {
+      basico: 200,
+      essencial: 300,
+      premium: 400
+    }
   };
 };
 
@@ -1774,6 +1791,484 @@ function AllocationChart() {
     }
   }, "As faixas refletem a flexibilidade do rebalanceamento mensal \u2014 o peso de cada classe \xE9 ajustado conforme oportunidades de mercado e perfil individual do cliente."));
 }
+
+// ============================================================
+// COMPARAÇÃO DE CARTEIRAS — carteira atual do cliente vs LP Finance
+// ============================================================
+function PortfolioComparison({
+  lpRentab,
+  lpDy
+}) {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState({
+    patrimonio: 0,
+    rentab: 0.08,
+    dy: 0.055,
+    aporte: 0
+  });
+  const [prazo, setPrazo] = useState(10);
+  const currentFV = useMemo(() => futureValue(current.patrimonio, current.aporte, current.rentab, prazo), [current, prazo]);
+  const currentRendaMes = useMemo(() => currentFV * (current.dy / 12), [currentFV, current.dy]);
+  const lpFV = useMemo(() => futureValue(current.patrimonio, current.aporte, lpRentab, prazo), [current.patrimonio, current.aporte, lpRentab, prazo]);
+  const lpRendaMes = useMemo(() => lpFV * (lpDy / 12), [lpFV, lpDy]);
+  const diffPat = lpFV - currentFV;
+  const diffRenda = lpRendaMes - currentRendaMes;
+  const pctPat = currentFV > 0 ? (lpFV / currentFV - 1) * 100 : 0;
+  const setCurrentField = (key, val) => setCurrent(c => ({
+    ...c,
+    [key]: val
+  }));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 0,
+      overflow: 'hidden',
+      marginTop: 24
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(!open),
+    style: {
+      width: '100%',
+      background: open ? BRAND.navy : BRAND.white,
+      color: open ? BRAND.white : BRAND.text,
+      border: 'none',
+      padding: '18px 24px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      cursor: 'pointer',
+      textAlign: 'left',
+      transition: 'all 0.2s ease'
+    },
+    className: "lp-body"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      background: open ? 'rgba(0, 191, 216, 0.2)' : BRAND.cyanPale,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  }, /*#__PURE__*/React.createElement(TrendingUp, {
+    size: 18,
+    color: open ? BRAND.cyan : BRAND.cyanDark
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-display",
+    style: {
+      fontSize: 15,
+      fontWeight: 600,
+      lineHeight: 1.2
+    }
+  }, "Compara\xE7\xE3o de carteiras"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: open ? 'rgba(255,255,255,0.65)' : BRAND.textMuted,
+      marginTop: 3
+    }
+  }, open ? 'Configure a carteira atual do cliente abaixo' : 'Compare a carteira atual do cliente com as premissas da LP Finance'))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 300,
+      color: open ? BRAND.cyan : BRAND.textMuted,
+      fontFamily: 'Manrope',
+      transition: 'transform 0.2s ease',
+      transform: open ? 'rotate(45deg)' : 'rotate(0)',
+      width: 22,
+      height: 22,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      lineHeight: 1
+    }
+  }, "+")), open && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 24,
+      background: BRAND.bgWarm
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 24,
+      alignItems: 'start'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 22,
+      background: BRAND.white
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: '50%',
+      background: BRAND.textMuted
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: BRAND.textMuted,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase'
+    }
+  }, "Carteira atual do cliente")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 18
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Patrim\xF4nio investido hoje"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    type: "number",
+    prefix: "R$",
+    value: current.patrimonio,
+    onChange: v => setCurrentField('patrimonio', v)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Aporte mensal atual"
+  }, /*#__PURE__*/React.createElement(TextInput, {
+    type: "number",
+    prefix: "R$",
+    value: current.aporte,
+    onChange: v => setCurrentField('aporte', v)
+  })), /*#__PURE__*/React.createElement(Slider, {
+    label: "Rentabilidade atual (a.a.)",
+    value: current.rentab,
+    onChange: v => setCurrentField('rentab', v),
+    min: 0,
+    max: 0.18,
+    step: 0.005,
+    format: formatPct,
+    accent: BRAND.textMuted
+  }), /*#__PURE__*/React.createElement(Slider, {
+    label: "DY m\xE9dio atual",
+    value: current.dy,
+    onChange: v => setCurrentField('dy', v),
+    min: 0,
+    max: 0.15,
+    step: 0.005,
+    format: formatPct,
+    accent: BRAND.textMuted
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 22,
+      background: `linear-gradient(135deg, ${BRAND.navy}, ${BRAND.navySoft})`,
+      borderColor: BRAND.navy,
+      color: BRAND.white
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: '50%',
+      background: BRAND.cyan
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: BRAND.cyan,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase'
+    }
+  }, "Carteira LP Finance")), /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 12,
+      color: 'rgba(255,255,255,0.65)',
+      marginBottom: 18,
+      lineHeight: 1.5
+    }
+  }, "Aplica as premissas definidas nas simula\xE7\xF5es acima sobre o mesmo patrim\xF4nio inicial e aporte mensal informados pelo cliente."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      paddingBottom: 12,
+      borderBottom: '1px solid rgba(255,255,255,0.1)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lp-body",
+    style: {
+      fontSize: 12,
+      color: 'rgba(255,255,255,0.7)'
+    }
+  }, "Rentabilidade"), /*#__PURE__*/React.createElement("span", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 18,
+      fontWeight: 500,
+      color: BRAND.cyan
+    }
+  }, formatPct(lpRentab))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      paddingBottom: 12,
+      borderBottom: '1px solid rgba(255,255,255,0.1)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lp-body",
+    style: {
+      fontSize: 12,
+      color: 'rgba(255,255,255,0.7)'
+    }
+  }, "DY m\xE9dio"), /*#__PURE__*/React.createElement("span", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 18,
+      fontWeight: 500,
+      color: BRAND.cyan
+    }
+  }, formatPct(lpDy)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: 'rgba(255,255,255,0.6)',
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+      marginBottom: 8
+    }
+  }, "Prazo da proje\xE7\xE3o"), /*#__PURE__*/React.createElement("input", {
+    type: "range",
+    className: "lp-slider",
+    min: 1,
+    max: 40,
+    step: 1,
+    value: prazo,
+    onChange: e => setPrazo(Number(e.target.value)),
+    style: {
+      background: `linear-gradient(to right, ${BRAND.cyan} 0%, ${BRAND.cyan} ${(prazo - 1) / 39 * 100}%, rgba(255,255,255,0.15) ${(prazo - 1) / 39 * 100}%, rgba(255,255,255,0.15) 100%)`
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'right',
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 16,
+      fontWeight: 500,
+      color: BRAND.cyan
+    }
+  }, prazo, " ", prazo === 1 ? 'ano' : 'anos'))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: BRAND.textMuted,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+      marginBottom: 14
+    }
+  }, "Resultado em ", prazo, " ", prazo === 1 ? 'ano' : 'anos'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: BRAND.textMuted,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      marginBottom: 10
+    }
+  }, "Patrim\xF4nio final"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.textSoft,
+      marginBottom: 2
+    }
+  }, "Carteira atual"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 18,
+      fontWeight: 500,
+      color: BRAND.textMuted
+    }
+  }, formatBRL(currentFV, true))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.cyanDark,
+      marginBottom: 2
+    }
+  }, "Com LP Finance"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 22,
+      fontWeight: 500,
+      color: BRAND.navy
+    }
+  }, formatBRL(lpFV, true))))), /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: BRAND.textMuted,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      marginBottom: 10
+    }
+  }, "Renda passiva mensal"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.textSoft,
+      marginBottom: 2
+    }
+  }, "Carteira atual"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 18,
+      fontWeight: 500,
+      color: BRAND.textMuted
+    }
+  }, formatBRL(currentRendaMes, true))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.cyanDark,
+      marginBottom: 2
+    }
+  }, "Com LP Finance"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 22,
+      fontWeight: 500,
+      color: BRAND.navy
+    }
+  }, formatBRL(lpRendaMes, true))))), /*#__PURE__*/React.createElement("div", {
+    className: "lp-card",
+    style: {
+      padding: 18,
+      background: `linear-gradient(135deg, ${BRAND.cyanPale}, ${BRAND.bg})`,
+      borderColor: BRAND.cyan
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: BRAND.cyanDark,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      marginBottom: 10
+    }
+  }, "Diferen\xE7a a favor da LP"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.textSoft,
+      marginBottom: 2
+    }
+  }, "+ Patrim\xF4nio"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 22,
+      fontWeight: 500,
+      color: diffPat >= 0 ? BRAND.success : BRAND.danger
+    }
+  }, diffPat >= 0 ? '+' : '', formatBRL(diffPat, true)), currentFV > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.textSoft,
+      marginTop: 2
+    }
+  }, pctPat >= 0 ? '+' : '', pctPat.toFixed(0), "% sobre o patrim\xF4nio atual")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "lp-body",
+    style: {
+      fontSize: 10,
+      color: BRAND.textSoft,
+      marginBottom: 2
+    }
+  }, "+ Renda mensal"), /*#__PURE__*/React.createElement("div", {
+    className: "lp-display lp-tabular",
+    style: {
+      fontSize: 18,
+      fontWeight: 500,
+      color: diffRenda >= 0 ? BRAND.success : BRAND.danger
+    }
+  }, diffRenda >= 0 ? '+' : '', formatBRL(diffRenda, true), "/m\xEAs"))))))));
+}
 function PlansSection({
   rendaMensal
 }) {
@@ -1789,7 +2284,7 @@ function PlansSection({
       gap: 16
     }
   }, PLANS.map(p => {
-    const precoFinal = p.precoBase + tier.adjustment;
+    const precoFinal = p.precoBase + tier.adjustments[p.id];
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
       className: "lp-card",
@@ -2431,7 +2926,7 @@ function App() {
       ...sim,
       rentab: v
     }),
-    min: 0.06,
+    min: 0,
     max: 0.18,
     step: 0.005,
     format: formatPct,
@@ -2455,7 +2950,7 @@ function App() {
       ...sim,
       prazo: v
     }),
-    min: 5,
+    min: 0,
     max: 40,
     step: 1,
     format: v => `${v} anos`,
@@ -2538,7 +3033,10 @@ function App() {
   }, "Comparativo entre poupan\xE7a, CDI e a estrat\xE9gia LP Finance"))), /*#__PURE__*/React.createElement(ComparisonChart, {
     data: chartData,
     target: patrimonioAlvo
-  }))))), /*#__PURE__*/React.createElement("section", {
+  })))), /*#__PURE__*/React.createElement(PortfolioComparison, {
+    lpRentab: sim.rentab,
+    lpDy: sim.dy
+  })), /*#__PURE__*/React.createElement("section", {
     style: {
       marginBottom: 40
     }
