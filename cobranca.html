@@ -256,20 +256,19 @@
       <div class="card-title"><span class="icon">✉</span> Mensagem de Cobrança</div>
       <div class="form-row single">
         <div>
-          <label>Template — 3 dias antes</label>
-          <textarea id="msg_3" rows="3">Olá, {nome}! 👋 Sua mensalidade da LP Finance vence em *{dias} dias* (dia {dia_venc}). Qualquer dúvida, me chama. 🤝</textarea>
+          <label>Template — dia do vencimento</label>
+          <textarea id="msg_venc" rows="3">Olá, {nome}! 👋 Sua mensalidade da LP Finance vence *hoje* (dia {dia_venc}). Qualquer dúvida, estou à disposição. 🤝</textarea>
         </div>
       </div>
       <div class="form-row single">
         <div>
-          <label>Template — véspera</label>
-          <textarea id="msg_1" rows="3">Olá, {nome}! 👋 Passando para lembrar que sua mensalidade da LP Finance vence *amanhã* (dia {dia_venc}). Qualquer dúvida, estou à disposição. 🤝</textarea>
+          <label>Template — cobrança de atraso</label>
+          <textarea id="msg_atraso" rows="3">Olá, {nome}! 👋 Identificamos que sua mensalidade da LP Finance referente ao dia *{dia_venc}* ainda não foi paga. Por favor, regularize para manter seu plano ativo. Qualquer dúvida, estou à disposição. 🤝</textarea>
         </div>
       </div>
       <div class="tag-hint">
         Variáveis disponíveis:
         <span onclick="inserirTag('{nome}')"> {nome} </span>
-        <span onclick="inserirTag('{dias}')"> {dias} </span>
         <span onclick="inserirTag('{dia_venc}')"> {dia_venc} </span>
         <span onclick="inserirTag('{valor}')"> {valor} </span>
       </div>
@@ -289,7 +288,7 @@
       </button>
     </div>
     <p style="color:var(--text-dim);font-size:12px;margin-top:8px">
-      Dispara para todos os clientes com vencimento nos próximos 1 ou 3 dias. O disparo automático ocorre todo dia às 9h.
+      Dispara para todos os clientes com vencimento <strong style="color:var(--text)">hoje</strong>. O disparo automático ocorre todo dia às 9h.
     </p>
   </div>
 
@@ -376,21 +375,21 @@ async function verificarWhatsApp() {
 
 // ─── MENSAGENS ────────────────────────────────────────────
 function carregarMensagens() {
-  const m3 = localStorage.getItem('lp_msg_3');
-  const m1 = localStorage.getItem('lp_msg_1');
-  if (m3) document.getElementById('msg_3').value = m3;
-  if (m1) document.getElementById('msg_1').value = m1;
+  const mv = localStorage.getItem('lp_msg_venc');
+  const ma = localStorage.getItem('lp_msg_atraso');
+  if (mv) document.getElementById('msg_venc').value = mv;
+  if (ma) document.getElementById('msg_atraso').value = ma;
 }
 
 function salvarMensagens() {
-  localStorage.setItem('lp_msg_3', document.getElementById('msg_3').value);
-  localStorage.setItem('lp_msg_1', document.getElementById('msg_1').value);
+  localStorage.setItem('lp_msg_venc', document.getElementById('msg_venc').value);
+  localStorage.setItem('lp_msg_atraso', document.getElementById('msg_atraso').value);
   toast('Mensagens salvas ✓', 'success');
 }
 
 function inserirTag(tag) {
   const active = document.activeElement;
-  if (active && (active.id === 'msg_3' || active.id === 'msg_1')) {
+  if (active && (active.id === 'msg_venc' || active.id === 'msg_atraso')) {
     const s = active.selectionStart, e = active.selectionEnd;
     active.value = active.value.slice(0,s) + tag + active.value.slice(e);
     active.selectionStart = active.selectionEnd = s + tag.length;
@@ -416,6 +415,7 @@ async function carregarClientes() {
       <td>${c.valor ? 'R$ ' + Number(c.valor).toFixed(2).replace('.',',') : '—'}</td>
       <td><span class="badge ${c.ativo ? 'badge-green' : 'badge-red'}">${c.ativo ? 'Ativo' : 'Inativo'}</span></td>
       <td style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="notificarAtraso('${c.id}', '${c.nome}', ${c.dia_vencimento})" title="Notificar atraso" style="border-color:rgba(240,192,64,0.4);color:#F0C040">⚠ Atraso</button>
         <button class="btn btn-outline btn-sm" onclick="toggleAtivo('${c.id}', ${c.ativo})">${c.ativo ? 'Pausar' : 'Ativar'}</button>
         <button class="btn btn-danger btn-sm" onclick="excluirCliente('${c.id}', '${c.nome}')">✕</button>
       </td>
@@ -481,6 +481,31 @@ async function carregarLog() {
       <span class="badge ${l.status === 'enviado' ? 'badge-green' : 'badge-red'}">${l.status}</span>
     </div>
   `).join('');
+}
+
+// ─── NOTIFICAR ATRASO ─────────────────────────────────────────────────────────
+async function notificarAtraso(id, nome, diaVenc) {
+  const templateBase = localStorage.getItem('lp_msg_atraso') ||
+    `Olá, ${nome}! 👋 Identificamos que sua mensalidade da LP Finance referente ao dia *${diaVenc}* ainda não foi paga. Por favor, regularize para manter seu plano ativo. Qualquer dúvida, estou à disposição. 🤝`;
+
+  const mensagem = templateBase
+    .replace(/{nome}/g, nome)
+    .replace(/{dia_venc}/g, diaVenc);
+
+  if (!confirm(`Enviar cobrança de atraso para ${nome}?\n\n"${mensagem}"`)) return;
+
+  try {
+    const r = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ tipo: 'atraso', client_id: id, mensagem })
+    });
+    const d = await r.json();
+    toast(d.ok ? `Atraso notificado para ${nome} ✓` : 'Erro ao enviar: ' + JSON.stringify(d), d.ok ? 'success' : 'error');
+    await carregarLog();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
 }
 
 // ─── DISPARO MANUAL ───────────────────────────────────────
