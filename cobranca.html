@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LP Finance — Cobranças</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300&family=Manrope:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --navy: #0B1E3F;
+    --navy-light: #112548;
+    --cyan: #00BFD8;
+    --cyan-dim: rgba(0,191,216,0.12);
+    --cyan-border: rgba(0,191,216,0.25);
+    --off-white: #F4F3EE;
+    --text: #E8E6DF;
+    --text-dim: rgba(232,230,223,0.5);
+    --red: #E05252;
+    --green: #3DBF82;
+    --yellow: #F0C040;
+    --card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(11,30,63,0.95);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .logo { font-family: 'Fraunces', serif; font-size: 20px; color: var(--cyan); letter-spacing: -0.5px; }
+  .logo span { color: var(--text-dim); font-weight: 300; }
+  .conn-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); transition: background 0.3s; }
+  .conn-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  /* LAYOUT */
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media(max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--off-white);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .icon { color: var(--cyan); font-size: 14px; }
+
+  /* FORM */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  .form-row.triple { grid-template-columns: 1fr 1fr 80px; }
+  label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  input, textarea, select {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--cyan-border); }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+  select option { background: var(--navy); }
+  .tag-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+  .tag-hint span {
+    display: inline-block;
+    background: var(--cyan-dim);
+    border: 1px solid var(--cyan-border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--cyan);
+    font-size: 11px;
+    margin: 2px 2px 0 0;
+    cursor: pointer;
+  }
+  .tag-hint span:hover { background: rgba(0,191,216,0.2); }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 20px; border-radius: 8px;
+    font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--cyan); color: var(--navy); }
+  .btn-primary:hover { background: #00d4ef; transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: 1px solid var(--cyan-border); color: var(--cyan); }
+  .btn-outline:hover { background: var(--cyan-dim); }
+  .btn-danger { background: transparent; border: 1px solid rgba(224,82,82,0.3); color: var(--red); }
+  .btn-danger:hover { background: rgba(224,82,82,0.1); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-full { width: 100%; justify-content: center; margin-top: 4px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-dim);
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: rgba(61,191,130,0.15); color: var(--green); }
+  .badge-red { background: rgba(224,82,82,0.15); color: var(--red); }
+  .badge-yellow { background: rgba(240,192,64,0.15); color: var(--yellow); }
+
+  /* TOGGLE */
+  .toggle {
+    position: relative; display: inline-block;
+    width: 36px; height: 20px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px; cursor: pointer;
+    transition: 0.2s;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute;
+    width: 14px; height: 14px; border-radius: 50%;
+    left: 3px; top: 3px;
+    background: var(--text-dim);
+    transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--cyan); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(16px); background: white; }
+
+  /* LOG */
+  .log-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; font-size: 12px;
+  }
+  .log-item:last-child { border-bottom: none; }
+  .log-name { font-weight: 600; color: var(--text); }
+  .log-time { color: var(--text-dim); }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--navy-light); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 18px;
+    font-size: 13px; color: var(--text);
+    transform: translateY(80px); opacity: 0;
+    transition: all 0.3s; z-index: 999;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: rgba(61,191,130,0.4); }
+  #toast.error { border-color: rgba(224,82,82,0.4); }
+
+  /* SECTION SPACING */
+  .section-gap { margin-top: 28px; }
+  .full-width { grid-column: 1 / -1; }
+  .flex-between { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .empty { text-align: center; padding: 32px; color: var(--text-dim); font-size: 13px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">LP Finance <span>/ Cobranças</span></div>
+  <div class="conn-badge">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connLabel">verificando...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- CONFIGURAÇÕES -->
+  <div class="grid">
+
+    <!-- CADASTRO DE CLIENTE -->
+    <div class="card">
+      <div class="card-title"><span class="icon">＋</span> Novo Cliente</div>
+      <div class="form-row">
+        <div>
+          <label>Nome</label>
+          <input type="text" id="f_nome" placeholder="João Silva">
+        </div>
+        <div>
+          <label>Telefone (com DDI)</label>
+          <input type="text" id="f_tel" placeholder="5521999999999">
+        </div>
+      </div>
+      <div class="form-row triple">
+        <div>
+          <label>Dia de Vencimento</label>
+          <input type="number" id="f_dia" min="1" max="28" placeholder="10">
+        </div>
+        <div>
+          <label>Valor (R$)</label>
+          <input type="number" id="f_valor" step="0.01" placeholder="197.00">
+        </div>
+        <div>
+          <label>Ativo</label>
+          <div style="padding-top:8px">
+            <label class="toggle">
+              <input type="checkbox" id="f_ativo" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="salvarCliente()">
+        Salvar Cliente
+      </button>
+    </div>
+
+    <!-- MENSAGEM DE COBRANÇA -->
+    <div class="card">
+      <div class="card-title"><span class="icon">✉</span> Mensagem de Cobrança</div>
+      <div class="form-row single">
+        <div>
+          <label>Template — 3 dias antes</label>
+          <textarea id="msg_3" rows="3">Olá, {nome}! 👋 Sua mensalidade da LP Finance vence em *{dias} dias* (dia {dia_venc}). Qualquer dúvida, me chama. 🤝</textarea>
+        </div>
+      </div>
+      <div class="form-row single">
+        <div>
+          <label>Template — véspera</label>
+          <textarea id="msg_1" rows="3">Olá, {nome}! 👋 Passando para lembrar que sua mensalidade da LP Finance vence *amanhã* (dia {dia_venc}). Qualquer dúvida, estou à disposição. 🤝</textarea>
+        </div>
+      </div>
+      <div class="tag-hint">
+        Variáveis disponíveis:
+        <span onclick="inserirTag('{nome}')"> {nome} </span>
+        <span onclick="inserirTag('{dias}')"> {dias} </span>
+        <span onclick="inserirTag('{dia_venc}')"> {dia_venc} </span>
+        <span onclick="inserirTag('{valor}')"> {valor} </span>
+      </div>
+      <button class="btn btn-outline btn-full" style="margin-top:16px" onclick="salvarMensagens()">
+        Salvar Mensagens
+      </button>
+    </div>
+
+  </div>
+
+  <!-- DISPARO MANUAL -->
+  <div class="card section-gap">
+    <div class="flex-between">
+      <div class="card-title" style="margin-bottom:0"><span class="icon">⚡</span> Disparo Manual</div>
+      <button class="btn btn-primary" id="btnDisparar" onclick="dispararAgora()">
+        Disparar Cobranças Agora
+      </button>
+    </div>
+    <p style="color:var(--text-dim);font-size:12px;margin-top:8px">
+      Dispara para todos os clientes com vencimento nos próximos 1 ou 3 dias. O disparo automático ocorre todo dia às 9h.
+    </p>
+  </div>
+
+  <!-- CLIENTES + LOG -->
+  <div class="grid section-gap">
+
+    <!-- LISTA DE CLIENTES -->
+    <div class="card full-width">
+      <div class="flex-between">
+        <div class="card-title" style="margin-bottom:0"><span class="icon">👥</span> Clientes Cadastrados</div>
+        <button class="btn btn-outline btn-sm" onclick="carregarClientes()">↻ Atualizar</button>
+      </div>
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Telefone</th>
+              <th>Vencimento</th>
+              <th>Valor</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tabelaClientes">
+            <tr><td colspan="6" class="empty">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LOG DE ENVIOS -->
+    <div class="card full-width">
+      <div class="flex-between">
+        <div class="card-title" style="margin-bottom:0"><span class="icon">📋</span> Log de Envios</div>
+        <button class="btn btn-outline btn-sm" onclick="carregarLog()">↻ Atualizar</button>
+      </div>
+      <div id="listaLog" style="margin-top:16px">
+        <div class="empty">Carregando...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const SUPABASE_URL = 'https://iuoqrkmlaknqgerorsdn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1b3Fya21sYWtucWdlcm9yc2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQ3MjQ4MDAsImV4cCI6MjAyMDMwMDgwMH0.placeholder';
+const EDGE_URL = `${SUPABASE_URL}/functions/v1/enviar-cobranca`;
+
+// Substitua pelo seu anon key real do Supabase
+// Vá em: Project Settings → API → anon public
+let ANON_KEY = localStorage.getItem('lp_anon_key') || '';
+
+const sb = supabase.createClient(SUPABASE_URL, ANON_KEY || SUPABASE_KEY);
+
+// ─── ANON KEY CHECK ───────────────────────────────────────
+window.onload = async () => {
+  if (!ANON_KEY) {
+    const key = prompt('Cole sua Supabase Anon Key (Project Settings → API):');
+    if (key) { localStorage.setItem('lp_anon_key', key); ANON_KEY = key; location.reload(); }
+  }
+  await verificarWhatsApp();
+  await carregarClientes();
+  await carregarLog();
+  carregarMensagens();
+};
+
+// ─── WHATSAPP STATUS ──────────────────────────────────────
+async function verificarWhatsApp() {
+  try {
+    const r = await fetch('https://evolution-api-production-97e2.up.railway.app/instance/connectionState/lp-finance', {
+      headers: { 'apikey': '362c1e4117533525c670fbba77d6b87cdae3ad3505d5ad324a3b2628920155bd' }
+    });
+    const d = await r.json();
+    const connected = d?.instance?.state === 'open';
+    document.getElementById('connDot').className = 'conn-dot' + (connected ? ' connected' : '');
+    document.getElementById('connLabel').textContent = connected ? 'WhatsApp conectado' : 'WhatsApp desconectado';
+  } catch { document.getElementById('connLabel').textContent = 'status indisponível'; }
+}
+
+// ─── MENSAGENS ────────────────────────────────────────────
+function carregarMensagens() {
+  const m3 = localStorage.getItem('lp_msg_3');
+  const m1 = localStorage.getItem('lp_msg_1');
+  if (m3) document.getElementById('msg_3').value = m3;
+  if (m1) document.getElementById('msg_1').value = m1;
+}
+
+function salvarMensagens() {
+  localStorage.setItem('lp_msg_3', document.getElementById('msg_3').value);
+  localStorage.setItem('lp_msg_1', document.getElementById('msg_1').value);
+  toast('Mensagens salvas ✓', 'success');
+}
+
+function inserirTag(tag) {
+  const active = document.activeElement;
+  if (active && (active.id === 'msg_3' || active.id === 'msg_1')) {
+    const s = active.selectionStart, e = active.selectionEnd;
+    active.value = active.value.slice(0,s) + tag + active.value.slice(e);
+    active.selectionStart = active.selectionEnd = s + tag.length;
+    active.focus();
+  } else {
+    toast('Clique no campo de mensagem antes de inserir a tag', 'error');
+  }
+}
+
+// ─── CLIENTES ─────────────────────────────────────────────
+async function carregarClientes() {
+  const { data, error } = await sb.from('billing_clients').select('*').order('nome');
+  const tbody = document.getElementById('tabelaClientes');
+  if (error || !data?.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">${error ? 'Erro ao carregar. Verifique a Anon Key.' : 'Nenhum cliente cadastrado ainda.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(c => `
+    <tr>
+      <td>${c.nome}</td>
+      <td style="color:var(--text-dim)">${c.telefone}</td>
+      <td>Dia ${c.dia_vencimento}</td>
+      <td>${c.valor ? 'R$ ' + Number(c.valor).toFixed(2).replace('.',',') : '—'}</td>
+      <td><span class="badge ${c.ativo ? 'badge-green' : 'badge-red'}">${c.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="toggleAtivo('${c.id}', ${c.ativo})">${c.ativo ? 'Pausar' : 'Ativar'}</button>
+        <button class="btn btn-danger btn-sm" onclick="excluirCliente('${c.id}', '${c.nome}')">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function salvarCliente() {
+  const nome = document.getElementById('f_nome').value.trim();
+  const telefone = document.getElementById('f_tel').value.trim();
+  const dia = parseInt(document.getElementById('f_dia').value);
+  const valor = parseFloat(document.getElementById('f_valor').value) || null;
+  const ativo = document.getElementById('f_ativo').checked;
+
+  if (!nome || !telefone || !dia) return toast('Preencha nome, telefone e dia de vencimento', 'error');
+  if (dia < 1 || dia > 28) return toast('Dia de vencimento deve ser entre 1 e 28', 'error');
+
+  const { error } = await sb.from('billing_clients').insert({ nome, telefone, dia_vencimento: dia, valor, ativo });
+  if (error) return toast('Erro ao salvar: ' + error.message, 'error');
+
+  toast('Cliente salvo ✓', 'success');
+  document.getElementById('f_nome').value = '';
+  document.getElementById('f_tel').value = '';
+  document.getElementById('f_dia').value = '';
+  document.getElementById('f_valor').value = '';
+  await carregarClientes();
+}
+
+async function toggleAtivo(id, atual) {
+  const { error } = await sb.from('billing_clients').update({ ativo: !atual }).eq('id', id);
+  if (error) return toast('Erro: ' + error.message, 'error');
+  toast(`Cliente ${!atual ? 'ativado' : 'pausado'} ✓`, 'success');
+  await carregarClientes();
+}
+
+async function excluirCliente(id, nome) {
+  if (!confirm(`Remover "${nome}"?`)) return;
+  const { error } = await sb.from('billing_clients').delete().eq('id', id);
+  if (error) return toast('Erro: ' + error.message, 'error');
+  toast('Cliente removido ✓', 'success');
+  await carregarClientes();
+}
+
+// ─── LOG ──────────────────────────────────────────────────
+async function carregarLog() {
+  const { data, error } = await sb
+    .from('cobranca_log')
+    .select('*, billing_clients(nome)')
+    .order('enviado_em', { ascending: false })
+    .limit(30);
+
+  const el = document.getElementById('listaLog');
+  if (error || !data?.length) {
+    el.innerHTML = `<div class="empty">${error ? 'Erro ao carregar log.' : 'Nenhum envio registrado ainda.'}</div>`;
+    return;
+  }
+  el.innerHTML = data.map(l => `
+    <div class="log-item">
+      <div>
+        <div class="log-name">${l.billing_clients?.nome || 'Cliente removido'}</div>
+        <div class="log-time">${new Date(l.enviado_em).toLocaleString('pt-BR')}</div>
+      </div>
+      <span class="badge ${l.status === 'enviado' ? 'badge-green' : 'badge-red'}">${l.status}</span>
+    </div>
+  `).join('');
+}
+
+// ─── DISPARO MANUAL ───────────────────────────────────────
+async function dispararAgora() {
+  const btn = document.getElementById('btnDisparar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Disparando...';
+
+  try {
+    const r = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`
+      },
+      body: '{}'
+    });
+    const d = await r.json();
+    const total = d?.resultados?.length || 0;
+    toast(total > 0 ? `${total} mensagem(ns) disparada(s) ✓` : 'Nenhum cliente com vencimento próximo', total > 0 ? 'success' : '');
+    await carregarLog();
+  } catch (e) {
+    toast('Erro ao disparar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Disparar Cobranças Agora';
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => el.className = '', 3000);
+}
+</script>
+</body>
+</html>
